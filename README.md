@@ -1,6 +1,6 @@
 # DeepSchedule – Struktura bazy danych
 
-Skrypt [`initialize_database.py`](./initialize_database.py) w języku **Python** (z biblioteką
+Skrypt [`initialize_database.py`](./backend/initialize_database.py) w języku **Python** (z biblioteką
 [PyMySQL](https://pypi.org/project/PyMySQL/)) łączy się z bazą MySQL i tworzy następujące
 tabele:
 
