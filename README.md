@@ -1,128 +1,50 @@
-# DeepSchedule – Struktura bazy danych
+# DeepSchedule Backend
 
-Skrypt [`initialize_database.py`](./backend/initialize_database.py) w języku **Python** (z biblioteką
-[PyMySQL](https://pypi.org/project/PyMySQL/)) łączy się z bazą MySQL i tworzy następujące
-tabele:
-
-1. [Przedmiot](#tabela-przedmiot)
-2. [Nauczyciel](#tabela-nauczyciel)
-3. [Oddzial](#tabela-oddzial)
-4. [Sala](#tabela-sala)
-5. [NauczycielOddzialPrzedmiot](#tabela-nauczycieloddzialprzedmiot) (łącznik)
-
-Po utworzeniu tabel do każdej z nich wstawiane są **przykładowe dane**.
-
----
+Ten projekt to backend systemu generowania planu lekcji, napisany w Pythonie. Wykorzystuje model AI (REINFORCE) do generowania planu lekcji na podstawie danych pobranych z bazy MySQL, a następnie zapisuje wygenerowany plan do bazy. Backend udostępnia API (przy użyciu Flask), które pozwala frontendowi na pobieranie planu.
 
 ## Wymagania
 
-- Python 3.x
-- Biblioteka PyMySQL:
-  ```bash
-  pip install pymysql
-  ```
-- Działający serwer MySQL, z utworzoną bazą (domyślnie `s5_deepschedule`).
+- Python 3.11
+- Baza MySQL (konfiguracja w `config.py`)
+- Poniższe pakiety (zainstalowane za pomocą `pip install -r requirements.txt`):
+  - Flask==2.2.5
+  - Flask-Cors==3.0.10
+  - pymysql==1.1.0
+  - tensorflow==2.15.0
+  - tensorflow-probability==0.23.0
+
+## Konfiguracja
+
+- Plik `config.py` zawiera ustawienia połączenia z bazą MySQL oraz nazwę tabeli, w której zapisany jest plan:
+
+## API Endpointy
+
+- **GET `/api/plan`**  
+  Zwraca aktualny plan lekcji zapisany w bazie w formacie JSON.
+
+- **POST `/api/plan/generate`**  
+  Uruchamia proces generowania planu lekcji przy użyciu modelu AI i zapisuje nowy plan do bazy. Następnie zwraca wygenerowany plan w formacie JSON.
+
+## Model AI
+
+Backend korzysta z modelu AI opartego na algorytmie REINFORCE (policy gradient):
+
+- **Środowisko (`TimetableEnv`)** – buduje listę lekcji do przydzielenia i obsługuje logikę przydziału, w tym sprawdzanie konfliktów (np. jedna klasa nie może mieć dwóch lekcji w tym samym czasie).
+- **Model polityki (`PolicyModel`)** – prosta sieć neuronowa w TensorFlow, która na podstawie stanu generuje rozkład akcji.
+- **Trening** – algorytm REINFORCE, który zbiera epizody, liczy zdyskontowane nagrody i aktualizuje model.
+
+## Zapisywanie planu
+
+Wygenerowany plan jest zapisywany do bazy danych w tabeli `PlanLekcji`. Każdy rekord zawiera:
+- `nauczyciel_id`
+- `oddzial_id`
+- `przedmiot_id`
+- `day` (dzień tygodnia, 0=Monday, 4=Friday)
+- `slot` (numer slotu lekcyjnego)
+- `room` (indeks sali)
+
+Frontend (planowany wkrótce) będzie pobierał dane z API i prezentował je użytkownikowi.
 
 ---
 
-## Sposób użycia
-
-1. Skonfiguruj parametry połączenia w pliku `initialize_database.py`:
-   ```python
-   host = '193.111.249.78'
-   user = 'u5_AF6h3cTZj3'
-   password = 'f.AY5y6GmUtdCD5Sx1=.bByx'
-   database = 's5_deepschedule'
-   port = 3306
-   ```
-2. Uruchom:
-   ```bash
-   python initialize_database.py
-   ```
-3. Skrypt:
-   - Usunie istniejące tabele (z wyłączonym `FOREIGN_KEY_CHECKS`).
-   - Stworzy na nowo wszystkie wymagane tabele.
-   - Wstawi przykładowe rekordy demonstrujące strukturę i działanie.
-
----
-
-## Schemat bazy danych
-
-Poniżej poglądowy diagram relacji:
-
-```
-  Przedmiot               Nauczyciel               Oddzial
-      |                      |                         |
-      |                      |                         |
-      |                      |                         |
-      \-------- NauczycielOddzialPrzedmiot ----------/
-                            
-                 Sala (niezależna tabela)
-```
-
-### Tabela `Przedmiot`
-
-| Kolumna | Typ         | Opis                                                |
-|---------|------------|------------------------------------------------------|
-| ID      | INT PK AI   | Unikatowy identyfikator (PRIMARY KEY)               |
-| Nazwa   | VARCHAR(100)| Nazwa przedmiotu (np. Matematyka, Polski, Informatyka)|
-
----
-
-### Tabela `Nauczyciel`
-
-| Kolumna            | Typ                                                                                          | Opis                                                                                         |
-|--------------------|----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| ID                 | INT PK AI                                                                                   | Unikatowy identyfikator                                                                      |
-| Imie               | VARCHAR(100)                                                                                 | Imię nauczyciela (np. Jan)                                                                    |
-| Nazwisko           | VARCHAR(100)                                                                                 | Nazwisko (np. Kowalski)                                                                       |
-| Rola               | ENUM('dyrektor','nauczyciel','pedagog','pedagog specjalny','psycholog','wicedyrektor') NOT NULL | Pełniona funkcja/rola w placówce                                                              |
-| GodzinyDostepnosci | VARCHAR(255)                                                                                 | Opis godzin dostępności (np. „Pn-Pt 8:00-13:00”)                                              |
-| Etat               | ENUM('pelen','czesc') NOT NULL                                                               | Status etatu: pełny lub częściowy                                                             |
-
----
-
-### Tabela `Oddzial`
-
-| Kolumna | Typ        | Opis                                                   |
-|---------|-----------|---------------------------------------------------------|
-| ID      | INT PK AI  | Unikatowy identyfikator                                |
-| Nazwa   | VARCHAR(50)| Nazwa oddziału (np. „1A”, „2B”)                         |
-
----
-
-### Tabela `Sala`
-
-| Kolumna            | Typ                                                    | Opis                                                                |
-|--------------------|--------------------------------------------------------|----------------------------------------------------------------------|
-| ID                 | INT PK AI                                             | Unikatowy identyfikator sali                                        |
-| Nazwa              | VARCHAR(100)                                          | Nazwa/oznaczenie sali (np. „Sala 101”)                               |
-| Przeznaczenie      | ENUM('komputerowa','lekcyjna','biologiczna','inne') NOT NULL | Rodzaj sali (komputerowa/lekcyjna/biologiczna/itp.)                  |
-| GodzinyDostepnosci | VARCHAR(255)                                          | Opis godzin, w których sala jest dostępna                            |
-
----
-
-### Tabela `NauczycielOddzialPrzedmiot`
-
-Tabela łącznikowa, która wskazuje, **który nauczyciel** uczy **jakiego przedmiotu** w **którym oddziale**, oraz ile godzin tygodniowo przeznaczonych jest na ten przedmiot.
-
-| Kolumna           | Typ         | Opis                                                                                  |
-|-------------------|------------|----------------------------------------------------------------------------------------|
-| ID                | INT PK AI   | Unikatowy identyfikator rekordu                                                       |
-| NauczycielID      | INT FK      | Klucz obcy do `Nauczyciel(ID)`                                                        |
-| OddzialID         | INT FK      | Klucz obcy do `Oddzial(ID)`                                                           |
-| PrzedmiotID       | INT FK      | Klucz obcy do `Przedmiot(ID)`                                                         |
-| TygodnioweGodziny | INT NOT NULL| Liczba godzin przedmiotu tygodniowo w danym oddziale                                  |
-
-**Klucze obce**:
-- `FOREIGN KEY (NauczycielID) REFERENCES Nauczyciel(ID)`
-- `FOREIGN KEY (OddzialID) REFERENCES Oddzial(ID)`
-- `FOREIGN KEY (PrzedmiotID) REFERENCES Przedmiot(ID)`
-
----
-
-## Uwagi końcowe
-
-- Obecny skrypt usuwa każdą istniejącą tabelę (`DROP TABLE IF EXISTS ...`), więc **wszystkie dane w tych tabelach** zostają usunięte.
-- Po ponownym uruchomieniu skryptu, tabela zostaje stworzona na nowo i wypełniona **przykładowymi** danymi.  
-- Można dowolnie modyfikować i rozwijać tę strukturę, np. dodając kolumny do `Nauczyciel`, `Sala` lub poszerzając rolę tabeli `NauczycielOddzialPrzedmiot` o godziny w konkretnych dniach, plan lekcji itp.
+© 2025 DeepSchedule. Wszystkie prawa zastrzeżone.

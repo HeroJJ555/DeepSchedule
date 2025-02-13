@@ -2,14 +2,14 @@ import numpy as np
 import tensorflow as tf
 import pymysql
 from config import DB_CONFIG, PLAN_TABLE
+from load_data import load_data_from_db
 
-# -=-=-=-=-=-= #
-#    CONFIG    #
-# -=-=-=-=-=-= #
-NUM_DNI = 5
-NUM_SLOTOW = 8
+# -=-=-=-=-=-=-=-
+# Ustawienia
+# -=-=-=-=-=-=-=-
+NUM_DNI = 5      # dni tygodnia
+NUM_SLOTOW = 8   # slotów dziennie
 
-# Setup ENV
 class TimetableEnv:
     def __init__(self, data):
         self.nauczyciele = data["nauczyciele"]
@@ -42,8 +42,14 @@ class TimetableEnv:
         remainder = action % (total_slots * total_rooms)
         slot = remainder // total_rooms
         room = remainder % total_rooms
+
         lesson = self.lessons[self.current_index]
         n_id, o_id, p_id = lesson
+
+        # Sprawdzenie konfliktu: w tym samym dniu i slocie nie może być:
+        # - przypisany ten sam nauczyciel,
+        # - ta sama sala,
+        # - ani lekcja dla tej samej klasy (oddziału).
         conflict = False
         for idx, assign in enumerate(self.assignments):
             if assign is None:
@@ -51,10 +57,10 @@ class TimetableEnv:
             assigned_day, assigned_slot, assigned_room = assign
             if assigned_day == day and assigned_slot == slot:
                 other_lesson = self.lessons[idx]
-                # Jedna klasa nie może mieć 2 lekcji w tym samym czasie
                 if other_lesson[0] == n_id or other_lesson[1] == o_id or assigned_room == room:
                     conflict = True
                     break
+
         reward = -1.0 if conflict else 0.5
         if not conflict:
             self.assignments[self.current_index] = (day, slot, room)
@@ -68,8 +74,7 @@ class TimetableEnv:
 
     def compute_structure_bonus(self):
         bonus = 0.0
-        days = range(NUM_DNI)
-        for day in days:
+        for day in range(NUM_DNI):
             day_assignments = []
             for idx, assign in enumerate(self.assignments):
                 if assign is not None and assign[0] == day:
@@ -91,7 +96,6 @@ class TimetableEnv:
         total_rooms = len(self.sale)
         return total_days * total_slots * total_rooms
 
-# Polityka – REINFORCE
 class PolicyModel(tf.keras.Model):
     def __init__(self, action_space_size):
         super().__init__()
@@ -111,19 +115,19 @@ def train_policy(env, model, optimizer, num_episodes=100, gamma=0.99):
         states = []
         actions = []
         rewards = []
-        state = env.reset()
+        state = env.reset()  # shape (1,)
         done = False
         while not done:
             states.append(state)
-            state_input = np.expand_dims(state, axis=0).astype(np.float32)
-            logits = model(state_input)
+            state_input = np.expand_dims(state, axis=0).astype(np.float32)  # (1,1)
+            logits = model(state_input)  # (1, action_space)
             action_dist = tf.nn.softmax(logits)
             action = np.random.choice(action_space, p=action_dist.numpy()[0])
             actions.append(action)
             next_state, reward, done, _ = env.step(action)
             rewards.append(reward)
             state = next_state
-
+        total_reward = np.sum(rewards)
         returns = []
         G = 0
         for r in reversed(rewards):
@@ -131,11 +135,9 @@ def train_policy(env, model, optimizer, num_episodes=100, gamma=0.99):
             returns.insert(0, G)
         returns = np.array(returns, dtype=np.float32)
         returns = (returns - np.mean(returns)) / (np.std(returns) + 1e-8)
-
-        states_tensor = tf.convert_to_tensor(np.array(states), dtype=tf.float32)
-        actions_tensor = tf.convert_to_tensor(np.array(actions), dtype=tf.int32)
-        returns_tensor = tf.convert_to_tensor(returns, dtype=tf.float32)
-
+        states_tensor = tf.convert_to_tensor(np.array(states), dtype=tf.float32)  # (episode_len, 1)
+        actions_tensor = tf.convert_to_tensor(np.array(actions), dtype=tf.int32)   # (episode_len,)
+        returns_tensor = tf.convert_to_tensor(returns, dtype=tf.float32)           # (episode_len,)
         with tf.GradientTape() as tape:
             logits = model(states_tensor)
             action_probs = tf.nn.softmax(logits)
@@ -146,36 +148,17 @@ def train_policy(env, model, optimizer, num_episodes=100, gamma=0.99):
         grads = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
         if (episode+1) % 10 == 0:
-            print(f"Episode {episode+1}: Total Reward: {np.sum(rewards):.2f}, Loss: {loss.numpy():.4f}")
+            print(f"Episode {episode+1}: Total Reward: {total_reward:.2f}, Loss: {loss.numpy():.4f}")
     return env.assignments
 
-# Generator
-def generate_plan():
-    from config import DB_CONFIG, PLAN_TABLE
-    data = load_data_from_db()
-    env = TimetableEnv(data)
-    action_space = env.action_space_size()
-    model = PolicyModel(action_space)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
-    assignments = train_policy(env, model, optimizer, num_episodes=100, gamma=0.99)
-    save_plan_to_db(env, table_name=PLAN_TABLE)
-    return env.assignments
-
-# DB
-def save_plan_to_db(env, table_name="PlanLekcji"):
-    host = DB_CONFIG["host"]
-    user = DB_CONFIG["user"]
-    password = DB_CONFIG["password"]
-    database = DB_CONFIG["database"]
-    port = DB_CONFIG["port"]
-
+def save_plan_to_db(env, table_name=PLAN_TABLE):
     connection = pymysql.connect(
-        host=host,
-        user=user,
-        password=password,
-        database=database,
-        port=port,
-        charset='utf8mb4'
+        host=DB_CONFIG["host"],
+        user=DB_CONFIG["user"],
+        password=DB_CONFIG["password"],
+        database=DB_CONFIG["database"],
+        port=DB_CONFIG["port"],
+        charset=DB_CONFIG["charset"]
     )
     try:
         with connection.cursor() as cursor:
@@ -206,6 +189,16 @@ def save_plan_to_db(env, table_name="PlanLekcji"):
         print(f"Plan został zapisany do bazy w tabeli '{table_name}'.")
     finally:
         connection.close()
+
+def generate_plan():
+    data = load_data_from_db()
+    env = TimetableEnv(data)
+    action_space = env.action_space_size()
+    model = PolicyModel(action_space)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+    _ = train_policy(env, model, optimizer, num_episodes=100, gamma=0.99)
+    save_plan_to_db(env, table_name=PLAN_TABLE)
+    return env.assignments
 
 if __name__ == "__main__":
     assignments = generate_plan()
