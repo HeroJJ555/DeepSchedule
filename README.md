@@ -1,45 +1,33 @@
 # DeepSchedule – Struktura bazy danych
 
-Ten projekt zawiera skrypt w języku **Python** (z użyciem biblioteki [PyMySQL](https://pypi.org/project/PyMySQL/)), który łączy się z bazą MySQL i tworzy następujące tabele:
+Skrypt [`initialize_database.py`](./initialize_database.py) w języku **Python** (z biblioteką
+[PyMySQL](https://pypi.org/project/PyMySQL/)) łączy się z bazą MySQL i tworzy następujące
+tabele:
 
 1. [Przedmiot](#tabela-przedmiot)
 2. [Nauczyciel](#tabela-nauczyciel)
 3. [Oddzial](#tabela-oddzial)
 4. [Sala](#tabela-sala)
-5. [NauczycielOddzialPrzedmiot](#tabela-nauczycieloddzialprzedmiot) (tabela łącznikowa)
+5. [NauczycielOddzialPrzedmiot](#tabela-nauczycieloddzialprzedmiot) (łącznik)
 
-Dane wstawiane do każdej z tabel są przykładowe i mają służyć prezentacji działania aplikacji.
-
----
-
-## Spis treści
-
-1. [Wymagania](#wymagania)
-2. [Sposób użycia](#sposób-użycia)
-3. [Schemat bazy danych](#schemat-bazy-danych)
-   1. [Tabela `Przedmiot`](#tabela-przedmiot)
-   2. [Tabela `Nauczyciel`](#tabela-nauczyciel)
-   3. [Tabela `Oddzial`](#tabela-oddzial)
-   4. [Tabela `Sala`](#tabela-sala)
-   5. [Tabela `NauczycielOddzialPrzedmiot`](#tabela-nauczycieloddzialprzedmiot)
-4. [Uwagi końcowe](#uwagi-końcowe)
+Po utworzeniu tabel do każdej z nich wstawiane są **przykładowe dane**.
 
 ---
 
 ## Wymagania
 
-- Python 3.x  
-- Zainstalowana biblioteka PyMySQL:
+- Python 3.x
+- Biblioteka PyMySQL:
   ```bash
   pip install pymysql
   ```
-- Dostępna baza MySQL (domyślnie korzystamy z parametrów: host, user, password, port i nazwa bazy ustawione w skrypcie).
+- Działający serwer MySQL, z utworzoną bazą (domyślnie `s5_deepschedule`).
 
 ---
 
 ## Sposób użycia
 
-1. Skonfiguruj parametry połączenia w skrypcie (np. `initialize_database.py`), w zmiennych:
+1. Skonfiguruj parametry połączenia w pliku `initialize_database.py`:
    ```python
    host = '193.111.249.78'
    user = 'u5_AF6h3cTZj3'
@@ -47,21 +35,20 @@ Dane wstawiane do każdej z tabel są przykładowe i mają służyć prezentacji
    database = 's5_deepschedule'
    port = 3306
    ```
-2. Uruchom skrypt:
+2. Uruchom:
    ```bash
    python initialize_database.py
    ```
 3. Skrypt:
-   - Połączy się z bazą `s5_deepschedule`.
-   - Usunie (DROP) istniejące tabele (z wyłączeniem wymuszonego sprawdzania kluczy obcych).
-   - Stworzy nowe tabele zgodnie z opisanym poniżej schematem.
-   - Uzupełni je przykładowymi danymi.
+   - Usunie istniejące tabele (z wyłączonym `FOREIGN_KEY_CHECKS`).
+   - Stworzy na nowo wszystkie wymagane tabele.
+   - Wstawi przykładowe rekordy demonstrujące strukturę i działanie.
 
 ---
 
 ## Schemat bazy danych
 
-Poniższy diagram przedstawia zależności między tabelami:
+Poniżej poglądowy diagram relacji:
 
 ```
   Przedmiot               Nauczyciel               Oddzial
@@ -74,89 +61,68 @@ Poniższy diagram przedstawia zależności między tabelami:
 ```
 
 ### Tabela `Przedmiot`
-Przechowuje listę przedmiotów szkolnych.
 
-| Kolumna | Typ         | Opis                                                   |
-|---------|------------|---------------------------------------------------------|
-| ID      | INT PK AI   | Unikatowy identyfikator (PRIMARY KEY, AUTO_INCREMENT)  |
-| Nazwa   | VARCHAR(100)| Nazwa przedmiotu (np. Matematyka, Polski, Informatyka) |
-
-**PK** = Primary Key  
-**AI** = Auto Increment  
+| Kolumna | Typ         | Opis                                                |
+|---------|------------|------------------------------------------------------|
+| ID      | INT PK AI   | Unikatowy identyfikator (PRIMARY KEY)               |
+| Nazwa   | VARCHAR(100)| Nazwa przedmiotu (np. Matematyka, Polski, Informatyka)|
 
 ---
 
 ### Tabela `Nauczyciel`
-Przechowuje informacje o nauczycielach i innych pracownikach szkoły.
 
-| Kolumna            | Typ                                                                                                                                          | Opis                                                                                                    |
-|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| ID                 | INT PK AI                                                                                                                                   | Unikatowy identyfikator                                                                                 |
-| Imie               | VARCHAR(100)                                                                                                                                | Imię nauczyciela (np. Jan)                                                                              |
-| Nazwisko           | VARCHAR(100)                                                                                                                                | Nazwisko (np. Kowalski)                                                                                 |
-| Rola               | ENUM('dyrektor','nauczyciel','pedagog','pedagog specjalny','psycholog','wicedyrektor')                                                     | Rola pełniona w placówce                                                                                 |
-| GodzinyDostepnosci | VARCHAR(255)                                                                                                                                | Informacja o godzinach, w których nauczyciel jest dostępny (np. „Pn-Pt 8:00-13:00”)                      |
-| Etat               | ENUM('pelen','czesc')                                                                                                                       | Status etatu: pełny lub częściowy                                                                        |
+| Kolumna            | Typ                                                                                          | Opis                                                                                         |
+|--------------------|----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| ID                 | INT PK AI                                                                                   | Unikatowy identyfikator                                                                      |
+| Imie               | VARCHAR(100)                                                                                 | Imię nauczyciela (np. Jan)                                                                    |
+| Nazwisko           | VARCHAR(100)                                                                                 | Nazwisko (np. Kowalski)                                                                       |
+| Rola               | ENUM('dyrektor','nauczyciel','pedagog','pedagog specjalny','psycholog','wicedyrektor') NOT NULL | Pełniona funkcja/rola w placówce                                                              |
+| GodzinyDostepnosci | VARCHAR(255)                                                                                 | Opis godzin dostępności (np. „Pn-Pt 8:00-13:00”)                                              |
+| Etat               | ENUM('pelen','czesc') NOT NULL                                                               | Status etatu: pełny lub częściowy                                                             |
 
 ---
 
 ### Tabela `Oddzial`
-Przechowuje listę oddziałów (klas).
 
-| Kolumna | Typ          | Opis                                                  |
-|---------|-------------|--------------------------------------------------------|
-| ID      | INT PK AI    | Unikatowy identyfikator                               |
-| Nazwa   | VARCHAR(50)  | Nazwa oddziału (np. 1A, 1B, 2A)                        |
+| Kolumna | Typ        | Opis                                                   |
+|---------|-----------|---------------------------------------------------------|
+| ID      | INT PK AI  | Unikatowy identyfikator                                |
+| Nazwa   | VARCHAR(50)| Nazwa oddziału (np. „1A”, „2B”)                         |
 
 ---
 
 ### Tabela `Sala`
-Przechowuje listę sal (pomieszczeń) wraz z ich przeznaczeniem i dostępnością.
 
-| Kolumna            | Typ                                                                        | Opis                                                                                      |
-|--------------------|----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| ID                 | INT PK AI                                                                   | Unikatowy identyfikator sali                                                              |
-| Nazwa              | VARCHAR(100)                                                                | Nazwa/oznaczenie sali (np. Sala 101)                                                      |
-| Przeznaczenie      | ENUM('komputerowa','lekcyjna','biologiczna','inne') NOT NULL               | Typ/przeznaczenie sali (komputerowa, lekcyjna, biologiczna, inne)                         |
-| GodzinyDostepnosci | VARCHAR(255)                                                                | Opis godzin, w których sala jest dostępna (np. "Pn-Pt 8:00-16:00")                        |
+| Kolumna            | Typ                                                    | Opis                                                                |
+|--------------------|--------------------------------------------------------|----------------------------------------------------------------------|
+| ID                 | INT PK AI                                             | Unikatowy identyfikator sali                                        |
+| Nazwa              | VARCHAR(100)                                          | Nazwa/oznaczenie sali (np. „Sala 101”)                               |
+| Przeznaczenie      | ENUM('komputerowa','lekcyjna','biologiczna','inne') NOT NULL | Rodzaj sali (komputerowa/lekcyjna/biologiczna/itp.)                  |
+| GodzinyDostepnosci | VARCHAR(255)                                          | Opis godzin, w których sala jest dostępna                            |
 
 ---
 
 ### Tabela `NauczycielOddzialPrzedmiot`
-Tabela łącznikowa, która wskazuje:
 
-- **który nauczyciel** (NauczycielID)  
-- uczy **jakiego przedmiotu** (PrzedmiotID)  
-- w **którym oddziale** (OddzialID)
+Tabela łącznikowa, która wskazuje, **który nauczyciel** uczy **jakiego przedmiotu** w **którym oddziale**, oraz ile godzin tygodniowo przeznaczonych jest na ten przedmiot.
 
-Dodatkowo przechowuje liczbę rocznych godzin planowanych dla danego przedmiotu w danym oddziale.
-
-| Kolumna        | Typ    | Opis                                                                                         |
-|----------------|--------|-----------------------------------------------------------------------------------------------|
-| ID             | INT PK AI | Unikatowy identyfikator w tabeli                                                          |
-| NauczycielID   | INT FK    | Klucz obcy do `Nauczyciel(ID)`                                                             |
-| OddzialID      | INT FK    | Klucz obcy do `Oddzial(ID)`                                                                |
-| PrzedmiotID    | INT FK    | Klucz obcy do `Przedmiot(ID)`                                                              |
-| RoczneGodziny  | INT NOT NULL | Łączna liczba godzin w skali roku (np. 120)                                            |
+| Kolumna           | Typ         | Opis                                                                                  |
+|-------------------|------------|----------------------------------------------------------------------------------------|
+| ID                | INT PK AI   | Unikatowy identyfikator rekordu                                                       |
+| NauczycielID      | INT FK      | Klucz obcy do `Nauczyciel(ID)`                                                        |
+| OddzialID         | INT FK      | Klucz obcy do `Oddzial(ID)`                                                           |
+| PrzedmiotID       | INT FK      | Klucz obcy do `Przedmiot(ID)`                                                         |
+| TygodnioweGodziny | INT NOT NULL| Liczba godzin przedmiotu tygodniowo w danym oddziale                                  |
 
 **Klucze obce**:
-- `FOREIGN KEY (NauczycielID) REFERENCES Nauczyciel(ID)`  
-- `FOREIGN KEY (OddzialID) REFERENCES Oddzial(ID)`  
+- `FOREIGN KEY (NauczycielID) REFERENCES Nauczyciel(ID)`
+- `FOREIGN KEY (OddzialID) REFERENCES Oddzial(ID)`
 - `FOREIGN KEY (PrzedmiotID) REFERENCES Przedmiot(ID)`
 
 ---
 
 ## Uwagi końcowe
 
-- Skrypt **usuwa** (DROP) istniejące tabele na rzecz nowej struktury. W efekcie wszystkie dotychczasowe dane w tych tabelach zostaną utracone.  
-- Możesz zmodyfikować kolejność, w której tabele są usuwane, lub użyć `SET FOREIGN_KEY_CHECKS=0`, aby wyłączyć tymczasowo wymuszanie integralności kluczy obcych.  
-- Jeśli potrzebujesz dodać kolejne kolumny (np. godziny lekcji, nazwa szkoły, itp.), zrób to w odpowiednich tabelach, dopasowując definicję do potrzeb.  
-
-W ten sposób powstaje baza danych, która przechowuje informacje o:
-- przedmiotach,  
-- nauczycielach (wraz z rolą i dostępnością),  
-- oddziałach (klasach),  
-- salach o różnych przeznaczeniach,  
-- ilości godzin poszczególnych przedmiotów w danych oddziałach (oraz nauczycieli, którzy ich uczą).  
-
----
+- Obecny skrypt usuwa każdą istniejącą tabelę (`DROP TABLE IF EXISTS ...`), więc **wszystkie dane w tych tabelach** zostają usunięte.
+- Po ponownym uruchomieniu skryptu, tabela zostaje stworzona na nowo i wypełniona **przykładowymi** danymi.  
+- Można dowolnie modyfikować i rozwijać tę strukturę, np. dodając kolumny do `Nauczyciel`, `Sala` lub poszerzając rolę tabeli `NauczycielOddzialPrzedmiot` o godziny w konkretnych dniach, plan lekcji itp.
